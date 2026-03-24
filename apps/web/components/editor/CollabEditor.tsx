@@ -19,6 +19,7 @@ interface CollabEditorProps {
   documentId: string;
   userName: string;
   userColor?: string;
+  onEditorReady?: (editor: ReturnType<typeof useEditor>) => void;
 }
 
 const COLORS = [
@@ -207,7 +208,7 @@ function Toolbar({ editor }: ToolbarProps) {
   );
 }
 
-export function CollabEditor({ documentId, userName, userColor }: CollabEditorProps) {
+export function CollabEditor({ documentId, userName, userColor, onEditorReady }: CollabEditorProps) {
   const [status, setStatus] = useState<"connecting" | "connected" | "disconnected">("connecting");
   const [connectedUsers, setConnectedUsers] = useState<Array<{ name: string; color: string }>>([]);
   const [saved, setSaved] = useState(true);
@@ -279,6 +280,13 @@ export function CollabEditor({ documentId, userName, userColor }: CollabEditorPr
       setTimeout(() => setSaved(true), 1500);
     },
   });
+
+  // Notify parent when editor is ready
+  useEffect(() => {
+    if (editor && onEditorReady) {
+      onEditorReady(editor);
+    }
+  }, [editor, onEditorReady]);
 
   const statusConfig = {
     connecting: { label: "Pripojovani...", color: "#f59e0b", bg: "#f59e0b15" },

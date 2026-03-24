@@ -2,7 +2,12 @@
 
 import { CollabEditor } from "@/components/editor/CollabEditor";
 import { StageManager } from "@/components/voting/StageManager";
+import { FileUpload } from "@/components/editor/FileUpload";
+import { AIAssistant } from "@/components/editor/AIAssistant";
+import { WikiPanel } from "@/components/wiki/WikiPanel";
+import { WikiExport } from "@/components/wiki/WikiExport";
 import Link from "next/link";
+import { useState, useCallback, useRef } from "react";
 
 interface DocEditorProps {
   doc: {
@@ -25,6 +30,7 @@ interface DocEditorProps {
   }>;
   user: { id: string; display_name: string };
   memberCount: number;
+  project?: { name: string; description: string; category: string } | null;
 }
 
 const statusLabels: Record<string, string> = {
@@ -43,7 +49,30 @@ const statusColors: Record<string, string> = {
   closed: "#3b82f6",
 };
 
-export function DocumentEditor({ doc, stages, user, memberCount }: DocEditorProps) {
+export function DocumentEditor({ doc, stages, user, memberCount, project }: DocEditorProps) {
+  const editorRef = useRef<any>(null);
+  const [editorContent, setEditorContent] = useState("");
+
+  const handleEditorReady = useCallback((editor: any) => {
+    editorRef.current = editor;
+    // Get initial content
+    if (editor) {
+      const text = editor.getText();
+      setEditorContent(text);
+      // Listen for updates
+      editor.on("update", () => {
+        setEditorContent(editor.getText());
+      });
+    }
+  }, []);
+
+  const handleInsertText = useCallback((text: string) => {
+    const editor = editorRef.current;
+    if (editor) {
+      editor.chain().focus().insertContent(text).run();
+    }
+  }, []);
+
   return (
     <div style={{ minHeight: "100vh", background: "#0a0a0f" }}>
       {/* Header */}
@@ -118,9 +147,9 @@ export function DocumentEditor({ doc, stages, user, memberCount }: DocEditorProp
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "1fr 320px",
+          gridTemplateColumns: "1fr 340px",
           gap: "0",
-          maxWidth: "1400px",
+          maxWidth: "1440px",
           margin: "0 auto",
           minHeight: "calc(100vh - 57px)",
         }}
@@ -140,12 +169,19 @@ export function DocumentEditor({ doc, stages, user, memberCount }: DocEditorProp
             <CollabEditor
               documentId={doc.id}
               userName={user.display_name}
+              onEditorReady={handleEditorReady}
             />
           </div>
         </div>
 
         {/* Sidebar */}
-        <div style={{ padding: "24px", overflow: "auto" }}>
+        <div
+          style={{
+            padding: "24px",
+            overflow: "auto",
+            maxHeight: "calc(100vh - 57px)",
+          }}
+        >
           <StageManager
             documentId={doc.id}
             stages={stages}
@@ -155,10 +191,38 @@ export function DocumentEditor({ doc, stages, user, memberCount }: DocEditorProp
             docStatus={doc.status}
           />
 
+          {/* File Upload & OCR */}
+          <div style={{ marginTop: "16px" }}>
+            <FileUpload
+              documentId={doc.id}
+              onInsert={handleInsertText}
+            />
+          </div>
+
+          {/* Wiki Export */}
+          <div style={{ marginTop: "16px" }}>
+            <WikiExport
+              documentId={doc.id}
+              documentTitle={doc.title}
+              documentContent={editorContent}
+              documentStatus={doc.status}
+            />
+          </div>
+
+          {/* Wiki Search & Import */}
+          <div style={{ marginTop: "16px" }}>
+            <WikiPanel
+              projectId={doc.project_id}
+              onImported={(docId) => {
+                window.open(`/dokumenty/${docId}`, "_blank");
+              }}
+            />
+          </div>
+
           {/* Document info */}
           <div
             style={{
-              marginTop: "24px",
+              marginTop: "16px",
               padding: "16px",
               background: "#12121a",
               borderRadius: "12px",
@@ -187,10 +251,30 @@ export function DocumentEditor({ doc, stages, user, memberCount }: DocEditorProp
                   {statusLabels[doc.status] || doc.status}
                 </span>
               </div>
+              {project && (
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ color: "#9898b0" }}>Projekt</span>
+                  <span style={{ color: "#6366f1" }}>{project.name}</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
       </div>
+
+      {/* AI Assistant (floating) - context-aware */}
+      <AIAssistant
+        context={{
+          type: "document",
+          projectName: project?.name,
+          projectDescription: project?.description,
+          projectCategory: project?.category,
+          documentTitle: doc.title,
+        }}
+        documentId={doc.id}
+        documentContent={editorContent}
+        onInsert={handleInsertText}
+      />
     </div>
   );
 }

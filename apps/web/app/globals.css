@@ -46,3 +46,42 @@ select option {
 select:focus {
   border-color: var(--accent) !important;
 }
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .desktop-only {
+    display: none !important;
+  }
+  .mobile-menu {
+    display: block !important;
+  }
+  .dashboard-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (min-width: 769px) {
+  .mobile-menu {
+    display: none !important;
+  }
+}
+
+/* Task board responsive */
+@media (max-width: 900px) {
+  .task-board-grid {
+    grid-template-columns: 1fr !important;
+    overflow-x: visible !important;
+  }
+}
+
+@media (min-width: 901px) {
+  .task-board-grid {
+    overflow-x: auto;
+  }
+}

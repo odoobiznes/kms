@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { AutoFill } from "@/components/ai/AutoFill";
 
 const categories = [
   { value: "project", label: "Projekt" },
@@ -44,6 +45,20 @@ export default function NovyProjektPage() {
       setError("Nelze se pripojit k serveru");
     } finally {
       setLoading(false);
+    }
+  }
+
+  function handleAutoFillApply(field: string, value: string) {
+    switch (field) {
+      case "description":
+        setDescription(value);
+        break;
+      case "category":
+        if (categories.some((c) => c.value === value)) {
+          setCategory(value);
+        }
+        break;
+      // goals not in this form but could be used for description
     }
   }
 
@@ -101,9 +116,18 @@ export default function NovyProjektPage() {
       </header>
 
       <main style={{ maxWidth: "600px", margin: "0 auto", padding: "48px 24px" }}>
-        <h1 style={{ fontSize: "28px", fontWeight: 700, color: "#e8e8f0", marginBottom: "32px" }}>
-          Novy projekt
-        </h1>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "32px" }}>
+          <h1 style={{ fontSize: "28px", fontWeight: 700, color: "#e8e8f0" }}>
+            Novy projekt
+          </h1>
+          <AutoFill
+            type="project"
+            getName={() => name}
+            getDescription={() => description}
+            getCategory={() => category}
+            onApply={handleAutoFillApply}
+          />
+        </div>
 
         {error && (
           <div

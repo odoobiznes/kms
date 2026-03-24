@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { HeaderNav } from "@/components/layout/HeaderNav";
+import { AppHeader } from "@/components/layout/AppHeader";
 
 interface IntegrationSystem {
   id: string;
@@ -21,6 +21,13 @@ interface IntegrationEvent {
   details: string;
   data: Record<string, unknown>;
   created_at: string;
+}
+
+interface WikiStatus {
+  connected: boolean;
+  version?: string;
+  exported_count?: number;
+  last_export?: string | null;
 }
 
 const SYSTEMS: IntegrationSystem[] = [
@@ -98,6 +105,9 @@ export default function WorkflowsPage() {
   const [systems, setSystems] = useState<IntegrationSystem[]>(SYSTEMS);
   const [events, setEvents] = useState<IntegrationEvent[]>([]);
   const [syncing, setSyncing] = useState(false);
+  const [wikiStatus, setWikiStatus] = useState<WikiStatus | null>(null);
+  const [wikiSyncing, setWikiSyncing] = useState(false);
+  const [wikiSyncResult, setWikiSyncResult] = useState<string | null>(null);
 
   const fetchEvents = useCallback(async () => {
     try {
@@ -125,20 +135,74 @@ export default function WorkflowsPage() {
     }
   }, []);
 
+  const fetchWikiStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/wiki?action=status");
+      if (res.ok) {
+        const data = await res.json();
+        setWikiStatus(data);
+
+        // Update WikiSys card status
+        setSystems((prev) =>
+          prev.map((sys) =>
+            sys.id === "wikisys"
+              ? {
+                  ...sys,
+                  status: data.connected ? "connected" : "disconnected",
+                  lastSync: data.last_export || sys.lastSync,
+                }
+              : sys
+          )
+        );
+      }
+    } catch {
+      setWikiStatus({ connected: false });
+    }
+  }, []);
+
   useEffect(() => {
     fetchEvents();
-  }, [fetchEvents]);
+    fetchWikiStatus();
+  }, [fetchEvents, fetchWikiStatus]);
 
   async function syncAll() {
     setSyncing(true);
     await new Promise((r) => setTimeout(r, 2000));
     await fetchEvents();
+    await fetchWikiStatus();
     setSyncing(false);
+  }
+
+  async function syncWikiClosed() {
+    setWikiSyncing(true);
+    setWikiSyncResult(null);
+    try {
+      const res = await fetch("/api/wiki", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "sync_closed" }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setWikiSyncResult(
+          `Synchronizovano ${data.exported_count} dokumentu` +
+            (data.error_count > 0 ? ` (${data.error_count} chyb)` : "")
+        );
+        await fetchWikiStatus();
+        await fetchEvents();
+      } else {
+        setWikiSyncResult(`Chyba: ${data.error}`);
+      }
+    } catch (err) {
+      setWikiSyncResult(`Chyba: ${String(err)}`);
+    } finally {
+      setWikiSyncing(false);
+    }
   }
 
   return (
     <div style={{ minHeight: "100vh", background: "#0a0a0f" }}>
-      <HeaderNav activePath="/workflows" />
+      <AppHeader activePath="/workflows" />
 
       <main style={{ maxWidth: "1200px", margin: "0 auto", padding: "32px 24px" }}>
         {/* Page title */}
@@ -224,6 +288,200 @@ export default function WorkflowsPage() {
               n8n Dashboard
             </a>
           </div>
+        </div>
+
+        {/* WikiSys Detail Card */}
+        <div
+          style={{
+            background: "#12121a",
+            border: "1px solid #f59e0b30",
+            borderRadius: "12px",
+            padding: "24px",
+            marginBottom: "24px",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              marginBottom: "20px",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <div
+                style={{
+                  width: "44px",
+                  height: "44px",
+                  borderRadius: "10px",
+                  background: "rgba(245,158,11,0.15)",
+                  color: "#f59e0b",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontWeight: 700,
+                  fontSize: "18px",
+                }}
+              >
+                W
+              </div>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: "16px", color: "#e8e8f0" }}>
+                  WikiSys
+                </div>
+                <div style={{ fontSize: "13px", color: "#9898b0", marginTop: "2px" }}>
+                  Znalostni baze - bidirekcni integrace
+                </div>
+              </div>
+            </div>
+            <StatusBadge status={wikiStatus?.connected ? "connected" : "disconnected"} />
+          </div>
+
+          {/* Wiki stats grid */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3, 1fr)",
+              gap: "16px",
+              marginBottom: "20px",
+            }}
+          >
+            <div
+              style={{
+                padding: "16px",
+                background: "#0a0a0f",
+                borderRadius: "8px",
+                border: "1px solid #1a1a2e",
+              }}
+            >
+              <div style={{ fontSize: "11px", color: "#9898b0", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>
+                Status pripojeni
+              </div>
+              <div style={{ fontSize: "18px", fontWeight: 600, color: wikiStatus?.connected ? "#22c55e" : "#ef4444" }}>
+                {wikiStatus?.connected ? "Online" : "Offline"}
+              </div>
+              {wikiStatus?.version && (
+                <div style={{ fontSize: "11px", color: "#9898b0", marginTop: "2px" }}>
+                  API v{wikiStatus.version}
+                </div>
+              )}
+            </div>
+            <div
+              style={{
+                padding: "16px",
+                background: "#0a0a0f",
+                borderRadius: "8px",
+                border: "1px solid #1a1a2e",
+              }}
+            >
+              <div style={{ fontSize: "11px", color: "#9898b0", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>
+                Exportovano clanku
+              </div>
+              <div style={{ fontSize: "18px", fontWeight: 600, color: "#f59e0b" }}>
+                {wikiStatus?.exported_count ?? 0}
+              </div>
+            </div>
+            <div
+              style={{
+                padding: "16px",
+                background: "#0a0a0f",
+                borderRadius: "8px",
+                border: "1px solid #1a1a2e",
+              }}
+            >
+              <div style={{ fontSize: "11px", color: "#9898b0", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>
+                Posledni export
+              </div>
+              <div style={{ fontSize: "14px", fontWeight: 500, color: "#e8e8f0" }}>
+                {wikiStatus?.last_export
+                  ? timeAgo(wikiStatus.last_export)
+                  : "Zatim zadny"}
+              </div>
+            </div>
+          </div>
+
+          {/* Sync actions */}
+          <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+            <button
+              onClick={syncWikiClosed}
+              disabled={wikiSyncing || !wikiStatus?.connected}
+              style={{
+                padding: "10px 20px",
+                borderRadius: "8px",
+                border: "1px solid #f59e0b",
+                background: wikiSyncing ? "rgba(245,158,11,0.2)" : "rgba(245,158,11,0.1)",
+                color: "#f59e0b",
+                fontSize: "13px",
+                fontWeight: 500,
+                cursor: wikiSyncing || !wikiStatus?.connected ? "not-allowed" : "pointer",
+                transition: "all 0.2s",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              {wikiSyncing ? (
+                <>
+                  <span style={{ display: "inline-block", animation: "spin 1s linear infinite" }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                    </svg>
+                  </span>
+                  Synchronizuji...
+                </>
+              ) : (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="23 4 23 10 17 10" />
+                    <polyline points="1 20 1 14 7 14" />
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                  </svg>
+                  Sync vsechny uzavrene dokumenty
+                </>
+              )}
+            </button>
+            <a
+              href="https://wikisys.it-enterprise.pro"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                padding: "10px 20px",
+                borderRadius: "8px",
+                border: "1px solid #2a2a40",
+                color: "#9898b0",
+                fontSize: "13px",
+                textDecoration: "none",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+            >
+              Otevrit WikiSys
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                <polyline points="15 3 21 3 21 9" />
+                <line x1="10" y1="14" x2="21" y2="3" />
+              </svg>
+            </a>
+          </div>
+
+          {wikiSyncResult && (
+            <div
+              style={{
+                marginTop: "12px",
+                padding: "10px 14px",
+                borderRadius: "8px",
+                fontSize: "13px",
+                background: wikiSyncResult.startsWith("Chyba")
+                  ? "rgba(239,68,68,0.1)"
+                  : "rgba(34,197,94,0.1)",
+                color: wikiSyncResult.startsWith("Chyba") ? "#ef4444" : "#22c55e",
+                border: `1px solid ${wikiSyncResult.startsWith("Chyba") ? "#ef444420" : "#22c55e20"}`,
+              }}
+            >
+              {wikiSyncResult}
+            </div>
+          )}
         </div>
 
         {/* Systems Grid */}

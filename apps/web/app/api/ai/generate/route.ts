@@ -1,6 +1,55 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 
+interface AIContext {
+  type?: string;
+  projectName?: string;
+  projectDescription?: string;
+  projectCategory?: string;
+  documentTitle?: string;
+  courseName?: string;
+  planName?: string;
+  goals?: string;
+}
+
+function buildSystemPrompt(aiContext?: AIContext, role?: string, docContent?: string): string {
+  // Base system prompt
+  if (!aiContext || !aiContext.type || aiContext.type === "general") {
+    let base = "Jsi uzitecny AI asistent v systemu pro spravu znalosti (KMS). Odpovidas ve stejnem jazyce, v jakem je zadan prompt. Pises profesionalne a strucne.";
+    if (role) base += `\nTvoje role: ${role}`;
+    return base;
+  }
+
+  const parts = [
+    "Jsi AI asistent v systemu KMS (Knowledge Management System).",
+    `Pracujes v kontextu: ${aiContext.type}`,
+  ];
+
+  if (aiContext.projectName) {
+    parts.push(`Projekt: ${aiContext.projectName}${aiContext.projectDescription ? " - " + aiContext.projectDescription : ""}`);
+  }
+  if (aiContext.projectCategory) parts.push(`Kategorie: ${aiContext.projectCategory}`);
+  if (aiContext.documentTitle) parts.push(`Dokument: ${aiContext.documentTitle}`);
+  if (aiContext.courseName) parts.push(`Kurz: ${aiContext.courseName}`);
+  if (aiContext.planName) parts.push(`Plan: ${aiContext.planName}`);
+  if (aiContext.goals) parts.push(`Cil: ${aiContext.goals}`);
+  if (role) parts.push(`Tvoje role: ${role}`);
+
+  parts.push("");
+  parts.push("Odpovidas profesionalne, strucne, ve stejnem jazyce jako uzivatel.");
+
+  const taskMap: Record<string, string> = {
+    project: "planovanim, analyzou a strukturou projektu",
+    document: "psanim, editaci a analyzou dokumentu",
+    course: "tvorbou osnov, testu a lekci",
+    plan: "planovanim, rozdelenim ukolu a prioritizaci",
+    general: "obecnymi dotazy",
+  };
+  parts.push(`Znas kontext a pomahes s ${taskMap[aiContext.type] || taskMap.general}.`);
+
+  return parts.join("\n");
+}
+
 export async function POST(request: NextRequest) {
   try {
     const user = await getSession();
@@ -8,7 +57,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { prompt, context, model } = await request.json();
+    const { prompt, context, model, aiContext, role } = await request.json();
 
     if (!prompt) {
       return NextResponse.json(
@@ -19,12 +68,14 @@ export async function POST(request: NextRequest) {
 
     const litellmUrl = process.env.LITELLM_URL || "http://127.0.0.1:4100";
     const litellmKey = process.env.LITELLM_MASTER_KEY || "";
-    const selectedModel = model || user.ai_model || "claude-sonnet";
+    const selectedModel = model || user.ai_model || "groq-llama";
+
+    const systemPrompt = buildSystemPrompt(aiContext as AIContext | undefined, role, context);
 
     const messages = [
       {
         role: "system",
-        content: "Jsi uzitecny AI asistent v systemu pro spravu znalosti (KMS). Odpovidas ve stejnem jazyce, v jakem je zadan prompt. Pises profesionalne a strucne.",
+        content: systemPrompt,
       },
     ];
 

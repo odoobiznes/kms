@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import Link from "next/link";
-import { LogoutButton } from "@/components/layout/LogoutButton";
+import { AppHeader } from "@/components/layout/AppHeader";
 
 interface AIModel {
   id: string;
@@ -56,20 +55,13 @@ export default function AIAgentiPage() {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [saveResult, setSaveResult] = useState<{ ok: boolean; message: string } | null>(null);
-  const [user, setUser] = useState<{ display_name: string } | null>(null);
 
   const loadData = useCallback(async () => {
     try {
-      const [modelsRes, settingsRes, meRes] = await Promise.all([
+      const [modelsRes, settingsRes] = await Promise.all([
         fetch("/api/ai/models"),
         fetch("/api/ai/settings"),
-        fetch("/api/auth/me"),
       ]);
-
-      if (meRes.ok) {
-        const meData = await meRes.json();
-        setUser(meData.user || meData);
-      }
 
       if (modelsRes.ok) {
         const modelsData = await modelsRes.json();
@@ -144,7 +136,6 @@ export default function AIAgentiPage() {
           const { done, value } = await reader.read();
           if (done) break;
           const chunk = decoder.decode(value, { stream: true });
-          // Parse SSE data
           const lines = chunk.split("\n");
           for (const line of lines) {
             if (line.startsWith("data: ")) {
@@ -155,7 +146,7 @@ export default function AIAgentiPage() {
                 const content = parsed.choices?.[0]?.delta?.content || "";
                 fullText += content;
               } catch {
-                // skip unparseable
+                // skip
               }
             }
           }
@@ -178,63 +169,24 @@ export default function AIAgentiPage() {
 
   if (loading) {
     return (
-      <div style={{ minHeight: "100vh", background: "#0a0a0f", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ color: "#9898b0", fontSize: "16px" }}>Nacitani...</div>
+      <div style={{ minHeight: "100vh", background: "#0a0a0f" }}>
+        <AppHeader activePath="/ai-agenti" />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "80px 20px" }}>
+          <div style={{ color: "#9898b0", fontSize: "16px" }}>Nacitani...</div>
+        </div>
       </div>
     );
   }
 
   return (
     <div style={{ minHeight: "100vh", background: "#0a0a0f" }}>
-      {/* Navigation */}
-      <header
-        style={{
-          borderBottom: "1px solid #2a2a40",
-          padding: "16px 32px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          backdropFilter: "blur(12px)",
-          backgroundColor: "rgba(10, 10, 15, 0.8)",
-          position: "sticky",
-          top: 0,
-          zIndex: 50,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <Link href="/" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <div
-              style={{
-                width: "36px",
-                height: "36px",
-                borderRadius: "8px",
-                background: "linear-gradient(135deg, #6366f1, #818cf8)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontWeight: 700,
-                fontSize: "14px",
-                color: "#fff",
-              }}
-            >
-              K
-            </div>
-            <span style={{ fontWeight: 600, fontSize: "18px", color: "#e8e8f0" }}>KMS</span>
-          </Link>
-          <span style={{ color: "#2a2a40", margin: "0 8px" }}>/</span>
-          <span style={{ color: "#9898b0", fontSize: "15px" }}>AI Agenti</span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          <span style={{ color: "#9898b0", fontSize: "14px" }}>{user?.display_name}</span>
-          <LogoutButton />
-        </div>
-      </header>
+      <AppHeader activePath="/ai-agenti" />
 
-      <main style={{ maxWidth: "900px", margin: "0 auto", padding: "32px 24px" }}>
-        <h1 style={{ fontSize: "28px", fontWeight: 700, color: "#e8e8f0", marginBottom: "8px" }}>
+      <main style={{ maxWidth: "900px", margin: "0 auto", padding: "32px 16px" }}>
+        <h1 style={{ fontSize: "24px", fontWeight: 700, color: "#e8e8f0", marginBottom: "6px" }}>
           AI Agenti
         </h1>
-        <p style={{ color: "#9898b0", fontSize: "14px", marginBottom: "32px" }}>
+        <p style={{ color: "#9898b0", fontSize: "13px", marginBottom: "28px" }}>
           Konfigurace preferovaneho AI modelu a nastaveni
         </p>
 
@@ -244,14 +196,14 @@ export default function AIAgentiPage() {
             background: "#12121a",
             border: "1px solid #2a2a40",
             borderRadius: "12px",
-            padding: "24px",
-            marginBottom: "24px",
+            padding: "20px",
+            marginBottom: "20px",
           }}
         >
-          <h2 style={{ fontSize: "18px", fontWeight: 600, color: "#e8e8f0", marginBottom: "16px" }}>
+          <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#e8e8f0", marginBottom: "14px" }}>
             Dostupne modely
           </h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "12px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "10px" }}>
             {models.map((m) => {
               const provider = providerFromModel[m.id] || "unknown";
               const color = providerColors[provider] || "#9898b0";
@@ -261,7 +213,7 @@ export default function AIAgentiPage() {
                   key={m.id}
                   onClick={() => setSelectedModel(m.id)}
                   style={{
-                    padding: "16px",
+                    padding: "14px",
                     borderRadius: "10px",
                     border: `2px solid ${isSelected ? color : "#2a2a40"}`,
                     background: isSelected ? `${color}10` : "#0a0a0f",
@@ -270,17 +222,17 @@ export default function AIAgentiPage() {
                     transition: "all 0.2s",
                   }}
                 >
-                  <div style={{ fontSize: "14px", fontWeight: 600, color: isSelected ? color : "#e8e8f0", marginBottom: "4px" }}>
+                  <div style={{ fontSize: "13px", fontWeight: 600, color: isSelected ? color : "#e8e8f0", marginBottom: "4px" }}>
                     {modelLabels[m.id] || m.id}
                   </div>
-                  <div style={{ fontSize: "12px", color: "#9898b0" }}>
+                  <div style={{ fontSize: "11px", color: "#9898b0" }}>
                     {providerLabels[provider] || provider}
                   </div>
                 </button>
               );
             })}
             {models.length === 0 && (
-              <div style={{ color: "#9898b0", fontSize: "14px", gridColumn: "1 / -1" }}>
+              <div style={{ color: "#9898b0", fontSize: "13px", gridColumn: "1 / -1" }}>
                 Zadne modely nejsou dostupne. Zkontrolujte AI gateway.
               </div>
             )}
@@ -293,11 +245,11 @@ export default function AIAgentiPage() {
             background: "#12121a",
             border: "1px solid #2a2a40",
             borderRadius: "12px",
-            padding: "24px",
-            marginBottom: "24px",
+            padding: "20px",
+            marginBottom: "20px",
           }}
         >
-          <h2 style={{ fontSize: "18px", fontWeight: 600, color: "#e8e8f0", marginBottom: "16px" }}>
+          <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#e8e8f0", marginBottom: "14px" }}>
             Nastaveni
           </h2>
 
@@ -351,7 +303,7 @@ export default function AIAgentiPage() {
             />
           </div>
 
-          <div style={{ display: "flex", gap: "12px" }}>
+          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
             <button
               onClick={handleSave}
               disabled={saving}
@@ -364,7 +316,6 @@ export default function AIAgentiPage() {
                 fontSize: "14px",
                 border: "none",
                 cursor: saving ? "not-allowed" : "pointer",
-                transition: "all 0.2s",
               }}
             >
               {saving ? "Ukladam..." : "Ulozit nastaveni"}
@@ -381,7 +332,6 @@ export default function AIAgentiPage() {
                 fontWeight: 500,
                 fontSize: "14px",
                 cursor: testing ? "not-allowed" : "pointer",
-                transition: "all 0.2s",
               }}
             >
               {testing ? "Testuji..." : "Test pripojeni"}
@@ -429,10 +379,10 @@ export default function AIAgentiPage() {
               background: "#12121a",
               border: "1px solid #2a2a40",
               borderRadius: "12px",
-              padding: "24px",
+              padding: "20px",
             }}
           >
-            <h2 style={{ fontSize: "18px", fontWeight: 600, color: "#e8e8f0", marginBottom: "16px" }}>
+            <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#e8e8f0", marginBottom: "14px" }}>
               Ulozene konfigurace
             </h2>
             <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -445,7 +395,7 @@ export default function AIAgentiPage() {
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "space-between",
-                      padding: "12px 16px",
+                      padding: "10px 14px",
                       borderRadius: "8px",
                       background: "#0a0a0f",
                       border: `1px solid ${cfg.is_default ? color + "60" : "#2a2a40"}`,
@@ -460,10 +410,10 @@ export default function AIAgentiPage() {
                           background: color,
                         }}
                       />
-                      <span style={{ fontSize: "14px", color: "#e8e8f0" }}>
+                      <span style={{ fontSize: "13px", color: "#e8e8f0" }}>
                         {modelLabels[cfg.model] || cfg.model}
                       </span>
-                      <span style={{ fontSize: "12px", color: "#9898b0" }}>
+                      <span style={{ fontSize: "11px", color: "#9898b0" }}>
                         {providerLabels[cfg.provider] || cfg.provider}
                       </span>
                     </div>

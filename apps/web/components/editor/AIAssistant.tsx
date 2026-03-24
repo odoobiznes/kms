@@ -2,28 +2,257 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 
-interface AIAssistantProps {
-  documentId: string;
-  documentContent?: string;
-  onInsert?: (text: string) => void;
-  onAddContribution?: (text: string) => void;
+// ---- Types ----
+
+interface AIContext {
+  type: 'project' | 'document' | 'course' | 'plan' | 'general';
+  projectName?: string;
+  projectDescription?: string;
+  projectCategory?: string;
+  documentTitle?: string;
+  courseName?: string;
+  planName?: string;
+  goals?: string;
 }
 
-const quickPrompts = [
-  { label: "Navrhnout obsah", prompt: "Navrhni obsah pro tuto sekci dokumentu." },
-  { label: "Prepsat profesionalneji", prompt: "Prepis tento text profesionalneji a srozumitelneji." },
-  { label: "Shrnout", prompt: "Shrun tento dokument do klicovych bodu." },
-  { label: "Opravit gramatiku", prompt: "Oprav gramaticke chyby v textu a vylepsit stylistiku." },
-  { label: "Rozsirit", prompt: "Rozsir a doplni tento text o dalsi detaily a vysvetleni." },
-];
+interface AIAssistantProps {
+  context: AIContext;
+  onInsert?: (text: string) => void;
+  onAddContribution?: (text: string) => void;
+  documentId?: string;
+  documentContent?: string;
+}
 
-export function AIAssistant({ documentId, documentContent, onInsert, onAddContribution }: AIAssistantProps) {
+// ---- Role definitions ----
+
+const rolesByCategory: Record<string, { id: string; label: string }[]> = {
+  course: [
+    { id: "teacher", label: "Ucitel" },
+    { id: "assistant", label: "Asistent" },
+    { id: "methodologist", label: "Metodik" },
+    { id: "test-creator", label: "Tvurce testu" },
+  ],
+  project: [
+    { id: "architect", label: "Architekt" },
+    { id: "developer", label: "Vyvojar" },
+    { id: "tester", label: "Tester" },
+    { id: "devops", label: "DevOps" },
+  ],
+  legal: [
+    { id: "lawyer", label: "Pravnik" },
+    { id: "advisor", label: "Poradce" },
+    { id: "auditor", label: "Kontrolor" },
+  ],
+  business: [
+    { id: "finance", label: "Financni poradce" },
+    { id: "strategist", label: "Strateg" },
+    { id: "analyst", label: "Analytik" },
+  ],
+  construction: [
+    { id: "foreman", label: "Stavbyvedouci" },
+    { id: "inspector", label: "Kontrolor" },
+    { id: "investor", label: "Investor" },
+  ],
+  review: [
+    { id: "reviewer", label: "Recenzent" },
+    { id: "auditor", label: "Auditor" },
+    { id: "consultant", label: "Konzultant" },
+  ],
+  research: [
+    { id: "scientist", label: "Vedec" },
+    { id: "analyst", label: "Analytik" },
+    { id: "researcher", label: "Researcher" },
+  ],
+  general: [
+    { id: "assistant", label: "Asistent" },
+    { id: "editor", label: "Editor" },
+    { id: "translator", label: "Prekladatel" },
+  ],
+};
+
+// ---- Preset buttons per context ----
+
+function getPresets(ctx: AIContext): { label: string; prompt: string }[] {
+  switch (ctx.type) {
+    case "project":
+      return [
+        {
+          label: "Doplnit popis",
+          prompt: `Analyzuj nazev projektu "${ctx.projectName || ""}" a navrhni: 1) Detailni popis projektu, 2) Hlavni cile, 3) Klicove milniky. Kategorie: ${ctx.projectCategory || "obecna"}.`,
+        },
+        {
+          label: "Navrhnout strukturu",
+          prompt: `Pro projekt "${ctx.projectName || ""}" (${ctx.projectDescription || "bez popisu"}) navrhni strukturu dokumentu a poddokumentu, ktere by mel projekt obsahovat.`,
+        },
+        {
+          label: "Definovat cile",
+          prompt: `Na zaklade nazvu "${ctx.projectName || ""}" a popisu "${ctx.projectDescription || ""}" navrhni 3-5 SMARTovych cilu projektu.`,
+        },
+      ];
+
+    case "document": {
+      const cat = ctx.projectCategory || "general";
+      const base = [
+        { label: "Prepsat profesionalneji", prompt: "Prepis tento text profesionalneji a srozumitelneji, zachovej vyznam." },
+        { label: "Shrnout", prompt: "Shrun tento dokument do klicovych bodu." },
+        { label: "Prelozit", prompt: "Preloz tento text do anglictiny (nebo do cestiny, pokud je v anglictine)." },
+      ];
+
+      if (cat === "project") {
+        return [
+          { label: "Navrhnout architekturu", prompt: `Pro dokument "${ctx.documentTitle || ""}" v projektu "${ctx.projectName || ""}" navrhni technickou architekturu.` },
+          { label: "Code review", prompt: "Proved code review tohoto kodu. Zamer se na bezpecnost, vykon a best practices." },
+          { label: "Dokumentace API", prompt: "Vytvor API dokumentaci pro tento kod ve formatu OpenAPI/Swagger." },
+          ...base,
+        ];
+      }
+      if (cat === "review") {
+        return [
+          { label: "Pravni analyza", prompt: "Proved pravni analyzu tohoto textu. Upozorni na rizika a problematicke formulace." },
+          { label: "Kontrola podminek", prompt: "Zkontroluj smluvni podminky v tomto dokumentu a upozorni na chybejici nebo nevyhodne klauzule." },
+          ...base,
+        ];
+      }
+      if (cat === "research") {
+        return [
+          { label: "Analyza dat", prompt: "Analyzuj data v tomto dokumentu a navrhni zavery." },
+          { label: "Metodologie", prompt: "Navrhni vhodnou vyzkumnou metodologii pro tento vyzkumny projekt." },
+          ...base,
+        ];
+      }
+      // general / document / course
+      return [
+        { label: "Navrhnout obsah", prompt: "Navrhni obsah pro tuto sekci dokumentu." },
+        { label: "Rozsirit", prompt: "Rozsir a doplni tento text o dalsi detaily a vysvetleni." },
+        { label: "Opravit gramatiku", prompt: "Oprav gramaticke chyby v textu a vylepsit stylistiku." },
+        ...base,
+      ];
+    }
+
+    case "course":
+      return [
+        {
+          label: "Navrhnout osnovu",
+          prompt: `Pro kurz "${ctx.courseName || ""}" (${ctx.projectDescription || ""}) navrhni osnovu lekci s tematy a casovym rozsahem.`,
+        },
+        {
+          label: "Vytvorit test",
+          prompt: `Vytvor testove otazky (5-10) pro kurz "${ctx.courseName || ""}". Zahrn: multiple choice, true/false a otevrenou otazku.`,
+        },
+        {
+          label: "Doplnit lekci",
+          prompt: `Rozsir obsah teto lekce kurzu "${ctx.courseName || ""}". Pridej vysvetleni, priklady a prakticke cviceni.`,
+        },
+        {
+          label: "Shrnout klicove body",
+          prompt: `Shrun klicove body teto lekce/kurzu "${ctx.courseName || ""}" do strucneho prehledu.`,
+        },
+      ];
+
+    case "plan":
+      return [
+        {
+          label: "Rozdelit na ukoly",
+          prompt: `Pro plan "${ctx.planName || ""}" (${ctx.goals || ctx.projectDescription || ""}) navrhni rozdeleni na konkretni ukoly a podukoly.`,
+        },
+        {
+          label: "Odhadnout cas",
+          prompt: `Odhadni casovou narocnost jednotlivych ukolu planu "${ctx.planName || ""}". Zadej odhad v hodinach/dnech.`,
+        },
+        {
+          label: "Prioritizovat",
+          prompt: `Navrhni prioritizaci ukolu planu "${ctx.planName || ""}" pomoci metody MoSCoW (Must/Should/Could/Won't).`,
+        },
+      ];
+
+    default:
+      return [
+        { label: "Navrhnout obsah", prompt: "Navrhni obsah pro tuto sekci." },
+        { label: "Prepsat profesionalneji", prompt: "Prepis tento text profesionalneji." },
+        { label: "Shrnout", prompt: "Shrun tento text do klicovych bodu." },
+        { label: "Prelozit", prompt: "Preloz tento text." },
+      ];
+  }
+}
+
+// ---- Resolve category to role key ----
+
+function getRoleKey(ctx: AIContext): string {
+  if (ctx.type === "course") return "course";
+  if (ctx.type === "plan") return "general";
+  if (ctx.type === "document" || ctx.type === "project") {
+    const cat = ctx.projectCategory || "general";
+    if (cat === "course") return "course";
+    if (cat === "project") return "project";
+    if (cat === "review") return "review";
+    if (cat === "research") return "research";
+    return "general";
+  }
+  return "general";
+}
+
+// ---- Context label ----
+
+function getContextLabel(ctx: AIContext): string {
+  switch (ctx.type) {
+    case "project": return `Projekt: ${ctx.projectName || "---"}`;
+    case "document": return `Dokument: ${ctx.documentTitle || "---"}`;
+    case "course": return `Kurz: ${ctx.courseName || "---"}`;
+    case "plan": return `Plan: ${ctx.planName || "---"}`;
+    default: return "Obecny kontext";
+  }
+}
+
+// ---- Build system prompt ----
+
+function buildSystemPrompt(ctx: AIContext, role?: string): string {
+  const parts = [
+    "Jsi AI asistent v systemu KMS (Knowledge Management System).",
+    `Pracujes v kontextu: ${ctx.type}`,
+  ];
+  if (ctx.projectName) parts.push(`Projekt: ${ctx.projectName}${ctx.projectDescription ? " - " + ctx.projectDescription : ""}`);
+  if (ctx.projectCategory) parts.push(`Kategorie: ${ctx.projectCategory}`);
+  if (ctx.documentTitle) parts.push(`Dokument: ${ctx.documentTitle}`);
+  if (ctx.courseName) parts.push(`Kurz: ${ctx.courseName}`);
+  if (ctx.planName) parts.push(`Plan: ${ctx.planName}`);
+  if (ctx.goals) parts.push(`Cil: ${ctx.goals}`);
+  if (role) parts.push(`Tvoje role: ${role}`);
+  parts.push("");
+  parts.push("Odpovidas profesionalne, strucne, ve stejnem jazyce jako uzivatel.");
+
+  const taskMap: Record<string, string> = {
+    project: "planovanim, analyzou a strukturou projektu",
+    document: "psanim, editaci a analyzou dokumentu",
+    course: "tvorbou osnov, testu a lekci",
+    plan: "planovanim, rozdelenim ukolu a prioritizaci",
+    general: "obecnymi dotazy",
+  };
+  parts.push(`Znas kontext a pomahes s ${taskMap[ctx.type] || taskMap.general}.`);
+
+  return parts.join("\n");
+}
+
+// ---- Model labels ----
+
+const modelLabels: Record<string, string> = {
+  "claude-sonnet": "Claude Sonnet",
+  "claude-haiku": "Claude Haiku",
+  "gpt-4o": "GPT-4o",
+  "gemini-flash": "Gemini Flash",
+  "groq-llama": "Groq Llama",
+};
+
+// ---- Component ----
+
+export function AIAssistant({ context, onInsert, onAddContribution, documentId, documentContent }: AIAssistantProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [response, setResponse] = useState("");
   const [loading, setLoading] = useState(false);
   const [model, setModel] = useState("");
   const [error, setError] = useState("");
+  const [selectedRole, setSelectedRole] = useState<string | null>(null);
+  const [showRoleBanner, setShowRoleBanner] = useState(true);
   const responseRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -34,6 +263,12 @@ export function AIAssistant({ documentId, documentContent, onInsert, onAddContri
       })
       .catch(() => {});
   }, []);
+
+  // Reset role banner when context changes
+  useEffect(() => {
+    setShowRoleBanner(true);
+    setSelectedRole(null);
+  }, [context.type, context.projectCategory]);
 
   const handleGenerate = useCallback(async () => {
     if (!prompt.trim()) return;
@@ -49,6 +284,17 @@ export function AIAssistant({ documentId, documentContent, onInsert, onAddContri
           prompt: prompt.trim(),
           context: documentContent || undefined,
           model: model || undefined,
+          aiContext: {
+            type: context.type,
+            projectName: context.projectName,
+            projectDescription: context.projectDescription,
+            projectCategory: context.projectCategory,
+            documentTitle: context.documentTitle,
+            courseName: context.courseName,
+            planName: context.planName,
+            goals: context.goals,
+          },
+          role: selectedRole || undefined,
         }),
       });
 
@@ -94,7 +340,7 @@ export function AIAssistant({ documentId, documentContent, onInsert, onAddContri
     } finally {
       setLoading(false);
     }
-  }, [prompt, documentContent, model]);
+  }, [prompt, documentContent, model, context, selectedRole]);
 
   useEffect(() => {
     if (responseRef.current) {
@@ -102,13 +348,10 @@ export function AIAssistant({ documentId, documentContent, onInsert, onAddContri
     }
   }, [response]);
 
-  const modelLabels: Record<string, string> = {
-    "claude-sonnet": "Claude Sonnet",
-    "claude-haiku": "Claude Haiku",
-    "gpt-4o": "GPT-4o",
-    "gemini-flash": "Gemini Flash",
-    "groq-llama": "Groq Llama",
-  };
+  const roleKey = getRoleKey(context);
+  const roles = rolesByCategory[roleKey] || rolesByCategory.general;
+  const presets = getPresets(context);
+  const contextLabel = getContextLabel(context);
 
   if (!isOpen) {
     return (
@@ -152,8 +395,8 @@ export function AIAssistant({ documentId, documentContent, onInsert, onAddContri
         position: "fixed",
         bottom: "24px",
         right: "24px",
-        width: "420px",
-        maxHeight: "600px",
+        width: "440px",
+        maxHeight: "650px",
         background: "#12121a",
         border: "1px solid #2a2a40",
         borderRadius: "16px",
@@ -167,7 +410,7 @@ export function AIAssistant({ documentId, documentContent, onInsert, onAddContri
       {/* Header */}
       <div
         style={{
-          padding: "16px 20px",
+          padding: "14px 20px",
           borderBottom: "1px solid #2a2a40",
           display: "flex",
           justifyContent: "space-between",
@@ -181,7 +424,10 @@ export function AIAssistant({ documentId, documentContent, onInsert, onAddContri
             <circle cx="9" cy="10" r="1" fill="#6366f1" />
             <circle cx="15" cy="10" r="1" fill="#6366f1" />
           </svg>
-          <span style={{ fontWeight: 600, fontSize: "15px", color: "#e8e8f0" }}>AI Asistent</span>
+          <div>
+            <span style={{ fontWeight: 600, fontSize: "15px", color: "#e8e8f0" }}>AI Asistent</span>
+            <div style={{ fontSize: "11px", color: "#6366f1", marginTop: "1px" }}>{contextLabel}</div>
+          </div>
           {model && (
             <span
               style={{
@@ -213,22 +459,107 @@ export function AIAssistant({ documentId, documentContent, onInsert, onAddContri
         </button>
       </div>
 
-      {/* Quick prompts */}
+      {/* Role banner */}
+      {showRoleBanner && !selectedRole && (
+        <div
+          style={{
+            padding: "12px 16px",
+            borderBottom: "1px solid #2a2a40",
+            background: "#6366f108",
+          }}
+        >
+          <div style={{ fontSize: "12px", color: "#9898b0", marginBottom: "8px" }}>
+            Mohu ti pomahat jako:
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+            {roles.map((role) => (
+              <button
+                key={role.id}
+                onClick={() => {
+                  setSelectedRole(role.label);
+                  setShowRoleBanner(false);
+                }}
+                style={{
+                  padding: "5px 12px",
+                  borderRadius: "100px",
+                  border: "1px solid #6366f140",
+                  background: "#6366f110",
+                  color: "#818cf8",
+                  fontSize: "12px",
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  transition: "all 0.15s",
+                }}
+              >
+                {role.label}
+              </button>
+            ))}
+            <button
+              onClick={() => setShowRoleBanner(false)}
+              style={{
+                padding: "5px 12px",
+                borderRadius: "100px",
+                border: "1px solid #2a2a40",
+                background: "transparent",
+                color: "#9898b0",
+                fontSize: "12px",
+                cursor: "pointer",
+              }}
+            >
+              Preskocit
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Selected role indicator */}
+      {selectedRole && (
+        <div
+          style={{
+            padding: "8px 16px",
+            borderBottom: "1px solid #2a2a40",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            background: "#6366f108",
+          }}
+        >
+          <span style={{ fontSize: "12px", color: "#9898b0" }}>
+            Role: <strong style={{ color: "#818cf8" }}>{selectedRole}</strong>
+          </span>
+          <button
+            onClick={() => {
+              setSelectedRole(null);
+              setShowRoleBanner(true);
+            }}
+            style={{
+              background: "none",
+              border: "none",
+              color: "#9898b0",
+              fontSize: "11px",
+              cursor: "pointer",
+              textDecoration: "underline",
+            }}
+          >
+            Zmenit
+          </button>
+        </div>
+      )}
+
+      {/* Preset buttons */}
       <div
         style={{
-          padding: "12px 16px",
+          padding: "10px 16px",
           display: "flex",
           flexWrap: "wrap",
           gap: "6px",
           borderBottom: "1px solid #2a2a40",
         }}
       >
-        {quickPrompts.map((qp) => (
+        {presets.map((p) => (
           <button
-            key={qp.label}
-            onClick={() => {
-              setPrompt(qp.prompt);
-            }}
+            key={p.label}
+            onClick={() => setPrompt(p.prompt)}
             style={{
               padding: "4px 10px",
               borderRadius: "6px",
@@ -240,7 +571,7 @@ export function AIAssistant({ documentId, documentContent, onInsert, onAddContri
               transition: "all 0.15s",
             }}
           >
-            {qp.label}
+            {p.label}
           </button>
         ))}
       </div>
@@ -252,8 +583,8 @@ export function AIAssistant({ documentId, documentContent, onInsert, onAddContri
           flex: 1,
           overflowY: "auto",
           padding: "16px 20px",
-          minHeight: "120px",
-          maxHeight: "300px",
+          minHeight: "100px",
+          maxHeight: "260px",
         }}
       >
         {loading && !response && (
@@ -290,7 +621,7 @@ export function AIAssistant({ documentId, documentContent, onInsert, onAddContri
           </div>
         )}
         {!loading && !error && !response && (
-          <div style={{ color: "#4a4a60", fontSize: "14px", textAlign: "center", padding: "24px 0" }}>
+          <div style={{ color: "#4a4a60", fontSize: "14px", textAlign: "center", padding: "20px 0" }}>
             Zadejte prompt nebo zvolte rychly prikaz
           </div>
         )}

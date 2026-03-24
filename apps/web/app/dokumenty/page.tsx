@@ -2,6 +2,7 @@ import { query } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { AppHeader } from "@/components/layout/AppHeader";
 import { DocumentFilters } from "./DocumentFilters";
 
 export const dynamic = "force-dynamic";
@@ -63,62 +64,22 @@ export default async function DokumentyPage({
 
   return (
     <div style={{ minHeight: "100vh", background: "#0a0a0f" }}>
-      {/* Header */}
-      <header
-        style={{
-          borderBottom: "1px solid #2a2a40",
-          padding: "12px 24px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          background: "rgba(10, 10, 15, 0.9)",
-          backdropFilter: "blur(12px)",
-          position: "sticky",
-          top: 0,
-          zIndex: 50,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          <Link
-            href="/"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              color: "#e8e8f0",
-            }}
-          >
-            <div
-              style={{
-                width: "28px",
-                height: "28px",
-                borderRadius: "6px",
-                background: "linear-gradient(135deg, #6366f1, #818cf8)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontWeight: 700,
-                fontSize: "12px",
-                color: "#fff",
-              }}
-            >
-              K
-            </div>
-          </Link>
-          <h1 style={{ fontSize: "16px", fontWeight: 600 }}>Dokumenty</h1>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+      <AppHeader activePath="/dokumenty" />
+
+      <main style={{ maxWidth: "1000px", margin: "0 auto", padding: "32px 16px" }}>
+        {/* Title + New doc button */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "12px" }}>
+          <h1 style={{ fontSize: "24px", fontWeight: 700, color: "#e8e8f0" }}>Dokumenty</h1>
           <Link
             href="/dokumenty/novy"
             style={{
-              padding: "8px 20px",
+              textDecoration: "none",
+              padding: "8px 18px",
               borderRadius: "8px",
               background: "linear-gradient(135deg, #6366f1, #818cf8)",
               color: "#fff",
               fontSize: "13px",
               fontWeight: 500,
-              border: "none",
-              cursor: "pointer",
               display: "flex",
               alignItems: "center",
               gap: "6px",
@@ -128,9 +89,7 @@ export default async function DokumentyPage({
             Novy dokument
           </Link>
         </div>
-      </header>
 
-      <main style={{ maxWidth: "1000px", margin: "0 auto", padding: "32px 24px" }}>
         {/* Filters */}
         <DocumentFilters
           projects={projects.map((p: Record<string, unknown>) => ({
@@ -141,19 +100,13 @@ export default async function DokumentyPage({
         />
 
         {/* Document count */}
-        <div style={{ marginBottom: "20px", fontSize: "13px", color: "#9898b0" }}>
+        <div style={{ marginBottom: "16px", fontSize: "13px", color: "#9898b0" }}>
           {docs.length} {docs.length === 1 ? "dokument" : docs.length < 5 ? "dokumenty" : "dokumentu"}
         </div>
 
-        {/* Documents grid */}
+        {/* Documents list */}
         {docs.length === 0 ? (
-          <div
-            style={{
-              textAlign: "center",
-              padding: "60px 24px",
-              color: "#9898b0",
-            }}
-          >
+          <div style={{ textAlign: "center", padding: "60px 24px", color: "#9898b0" }}>
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ margin: "0 auto 16px", opacity: 0.5 }}>
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
               <polyline points="14 2 14 8 20 8"/>
@@ -162,7 +115,7 @@ export default async function DokumentyPage({
             <p style={{ fontSize: "13px" }}>Vytvorte prvni dokument kliknutim na tlacitko vyse.</p>
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
             {docs.map((doc: { id: string; title: string; status: string; project_name: string | null; author_name: string | null; stage_order: number; updated_at: string }) => (
               <Link
                 key={doc.id}
@@ -170,15 +123,15 @@ export default async function DokumentyPage({
                 style={{
                   background: "#12121a",
                   border: "1px solid #2a2a40",
-                  borderRadius: "12px",
-                  padding: "20px 24px",
+                  borderRadius: "10px",
+                  padding: "16px 20px",
                   display: "block",
                   transition: "all 0.2s",
-                  cursor: "pointer",
+                  textDecoration: "none",
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
-                  <h3 style={{ fontSize: "15px", fontWeight: 600, color: "#e8e8f0" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "6px" }}>
+                  <h3 style={{ fontSize: "14px", fontWeight: 600, color: "#e8e8f0" }}>
                     {doc.title}
                   </h3>
                   <span
@@ -198,7 +151,7 @@ export default async function DokumentyPage({
                     {statusLabels[doc.status] || (doc.status)}
                   </span>
                 </div>
-                <div style={{ display: "flex", gap: "16px", fontSize: "12px", color: "#9898b0" }}>
+                <div style={{ display: "flex", gap: "16px", fontSize: "12px", color: "#9898b0", flexWrap: "wrap" }}>
                   {doc.project_name ? (
                     <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>

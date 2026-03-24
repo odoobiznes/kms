@@ -1,4 +1,16 @@
 model_list:
+  # Groq - default (fastest, free)
+  - model_name: groq-llama
+    litellm_params:
+      model: groq/llama-3.3-70b-versatile
+      api_key: os.environ/GROQ_API_KEY
+
+  - model_name: groq-deepseek
+    litellm_params:
+      model: groq/deepseek-r1-distill-llama-70b
+      api_key: os.environ/GROQ_API_KEY
+
+  # Anthropic Claude
   - model_name: claude-sonnet
     litellm_params:
       model: anthropic/claude-sonnet-4-20250514
@@ -9,20 +21,17 @@ model_list:
       model: anthropic/claude-haiku-4-5-20251001
       api_key: os.environ/ANTHROPIC_API_KEY
 
+  # OpenAI
   - model_name: gpt-4o
     litellm_params:
       model: openai/gpt-4o
       api_key: os.environ/OPENAI_API_KEY
 
-  - model_name: gemini-flash
+  # Google Gemini
+  - model_name: gemini
     litellm_params:
       model: gemini/gemini-2.0-flash
       api_key: os.environ/GOOGLE_API_KEY
-
-  - model_name: groq-llama
-    litellm_params:
-      model: groq/llama-3.3-70b-versatile
-      api_key: os.environ/GROQ_API_KEY
 
 litellm_settings:
   drop_params: true

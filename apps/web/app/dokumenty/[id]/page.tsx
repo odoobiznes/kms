@@ -1,4 +1,4 @@
-import { getDocument, getStages, getProjectMembers } from "@/lib/db";
+import { getDocument, getStages, getProjectMembers, getProject } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import { DocumentEditor } from "./DocumentEditor";
@@ -22,12 +22,24 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
 
   const stages = await getStages(id);
   let members: { id: string; display_name: string }[] = [];
+  let project: { name: string; description: string; category: string } | null = null;
+
   if (doc.project_id) {
-    const pm = await getProjectMembers(doc.project_id);
+    const [pm, proj] = await Promise.all([
+      getProjectMembers(doc.project_id),
+      getProject(doc.project_id),
+    ]);
     members = pm.map((m: Record<string, unknown>) => ({
       id: m.user_id as string,
       display_name: m.display_name as string,
     }));
+    if (proj) {
+      project = {
+        name: proj.name,
+        description: proj.description || "",
+        category: proj.category || "document",
+      };
+    }
   }
 
   return (
@@ -52,6 +64,7 @@ export default async function DocumentPage({ params }: { params: Promise<{ id: s
       }))}
       user={{ id: user.id, display_name: user.display_name }}
       memberCount={members.length || 1}
+      project={project}
     />
   );
 }

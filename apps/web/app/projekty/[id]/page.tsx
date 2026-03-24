@@ -5,6 +5,7 @@ import Link from "next/link";
 import { LogoutButton } from "@/components/layout/LogoutButton";
 import { VotePanel } from "@/components/voting/VotePanel";
 import { AIStats } from "@/components/ui/AIStats";
+import { ProjectAI } from "./ProjectAI";
 
 const categoryLabels: Record<string, string> = {
   course: "Kurz",
@@ -480,6 +481,13 @@ export default async function ProjectDetailPage({ params }: PageProps) {
           </div>
         </div>
       </main>
+
+      {/* Context-aware AI Assistant */}
+      <ProjectAI
+        projectName={project.name}
+        projectDescription={project.description || ""}
+        projectCategory={project.category || "project"}
+      />
     </div>
   );
 }
